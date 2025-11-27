@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { Timer, HistoryItem } from './types';
 import TimerInput from './components/TimerInput';
 import TimerCard from './components/TimerCard';
@@ -25,6 +26,9 @@ const App: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [demoData, setDemoData] = useState<HistoryItem[]>([]);
+
+  // PiP State
+  const [pipWindow, setPipWindow] = useState<Window | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,6 +62,15 @@ const App: React.FC = () => {
           setCurrentPage(1);
       }
   }, [demoMode]);
+
+  // Cleanup PiP when unmounting or if all timers are closed (handled in logic below)
+  useEffect(() => {
+    return () => {
+      if (pipWindow) {
+        pipWindow.close();
+      }
+    };
+  }, []);
 
   const setTimeState = (callback: (prev: Timer[]) => Timer[]) => {
       if (demoMode) {
@@ -182,7 +195,6 @@ const App: React.FC = () => {
   };
 
   const completeTimer = (id: string) => {
-      // Same as delete, but conceptually specific "Finish" action
       deleteTimer(id);
   };
 
@@ -194,16 +206,84 @@ const App: React.FC = () => {
     }
   };
 
-  const minimizeTimer = (id: string) => {
+  // --- PiP Logic ---
+
+  const minimizeTimer = async (id: string) => {
+    // 1. Update state to minimized
     setTimeState(prev => prev.map(t => t.id === id ? { ...t, isMinimized: true } : t));
+
+    // 2. Try to open PiP window if supported and not already open
+    if ('documentPictureInPicture' in window && !pipWindow) {
+      try {
+        const win = await window.documentPictureInPicture.requestWindow({
+          width: 350,
+          height: 200, // Initial height, will grow with content
+        });
+
+        // Copy styles (Tailwind CDN)
+        const tailwindScript = document.querySelector('script[src*="tailwindcss"]');
+        if (tailwindScript) {
+            const script = win.document.createElement('script');
+            script.src = (tailwindScript as HTMLScriptElement).src;
+            win.document.head.appendChild(script);
+        }
+        
+        // Copy other styles (Fonts, etc)
+        Array.from(document.styleSheets).forEach((styleSheet) => {
+            try {
+                if (styleSheet.href) {
+                    const link = win.document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = styleSheet.href;
+                    win.document.head.appendChild(link);
+                } else if (styleSheet.cssRules) {
+                    const style = win.document.createElement('style');
+                    Array.from(styleSheet.cssRules).forEach(rule => {
+                        style.appendChild(document.createTextNode(rule.cssText));
+                    });
+                    win.document.head.appendChild(style);
+                }
+            } catch (e) {
+                // Ignore cross-origin styles
+            }
+        });
+
+        // Add base body styles
+        win.document.body.style.backgroundColor = '#0f172a'; // slate-900
+        win.document.body.style.margin = '0';
+        win.document.body.style.display = 'flex';
+        win.document.body.style.flexDirection = 'column';
+        win.document.body.style.padding = '1rem';
+        win.document.body.style.gap = '0.5rem';
+
+        // Handle PiP close
+        win.addEventListener('pagehide', () => {
+          setPipWindow(null);
+        });
+
+        setPipWindow(win);
+
+      } catch (err) {
+        console.error("Failed to open PiP window:", err);
+      }
+    }
   };
 
   const restoreTimer = (id: string) => {
     setTimeState(prev => prev.map(t => t.id === id ? { ...t, isMinimized: false } : t));
   };
+  
+  // Close PiP window if no minimized timers are left
+  const minimizedTimers = currentTimers.filter(t => t.isMinimized);
+  useEffect(() => {
+    if (minimizedTimers.length === 0 && pipWindow) {
+        pipWindow.close();
+        setPipWindow(null);
+    }
+  }, [minimizedTimers.length, pipWindow]);
+
 
   const activeTimers = currentTimers.filter(t => !t.isMinimized);
-  const minimizedTimers = currentTimers.filter(t => t.isMinimized);
 
   // Pagination Logic
   const totalPages = Math.ceil(activeTimers.length / itemsPerPage);
@@ -226,6 +306,24 @@ const App: React.FC = () => {
         setCurrentPage(totalPages);
     }
   }, [totalPages, currentPage]);
+
+  // Render PiP content via Portal
+  const renderPipContent = () => {
+      if (!pipWindow) return null;
+      return ReactDOM.createPortal(
+          <div className="flex flex-col gap-2 w-full h-full">
+               {minimizedTimers.map((timer) => (
+                    <MiniTimer
+                    key={timer.id}
+                    timer={timer}
+                    onToggle={toggleTimer}
+                    onRestore={restoreTimer}
+                    />
+                ))}
+          </div>,
+          pipWindow.document.body
+      );
+  };
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 selection:bg-indigo-500/30">
@@ -322,22 +420,30 @@ const App: React.FC = () => {
             
             {activeTimers.length === 0 && minimizedTimers.length > 0 && (
                 <div className="text-center py-10 text-slate-500 text-sm">
-                    {minimizedTimers.length} timer{minimizedTimers.length > 1 ? 's' : ''} minimized.
+                    {minimizedTimers.length} timer{minimizedTimers.length > 1 ? 's' : ''} minimized {pipWindow ? 'to desktop' : ''}.
                 </div>
             )}
           </div>
         </section>
       </div>
 
-      {/* Render Minimized Timers (PiP) */}
-      {minimizedTimers.map((timer) => (
-        <MiniTimer
-          key={timer.id}
-          timer={timer}
-          onToggle={toggleTimer}
-          onRestore={restoreTimer}
-        />
-      ))}
+      {/* Render Minimized Timers */}
+      {/* CASE 1: Document PiP is active. Render via Portal */}
+      {pipWindow && renderPipContent()}
+
+      {/* CASE 2: Document PiP NOT active (fallback). Render as fixed overlay */}
+      {!pipWindow && minimizedTimers.length > 0 && (
+          <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+            {minimizedTimers.map((timer) => (
+                <MiniTimer
+                key={timer.id}
+                timer={timer}
+                onToggle={toggleTimer}
+                onRestore={restoreTimer}
+                />
+            ))}
+          </div>
+      )}
 
       {/* History View Modal */}
       {showHistory && (

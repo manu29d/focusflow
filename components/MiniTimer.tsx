@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Pause, Play, X, Maximize2 } from 'lucide-react';
 import { Timer } from '../types';
@@ -27,7 +28,7 @@ const MiniTimer: React.FC<MiniTimerProps> = ({ timer, onToggle, onRestore }) => 
   if (!timer.isMinimized) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up ring-1 ring-white/10">
+    <div className="w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-slide-up ring-1 ring-white/10 mb-2">
       <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 p-1"></div>
       <div className="p-4 backdrop-blur-xl bg-slate-900/95">
         <div className="flex justify-between items-start mb-2">

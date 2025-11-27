@@ -25,3 +25,14 @@ export type TimerAction =
   | { type: 'RESTORE_TIMER'; payload: string }
   | { type: 'UPDATE_TITLE'; payload: { id: string; title: string } }
   | { type: 'UPDATE_TIMER'; payload: { id: string; updates: Partial<Timer> } };
+
+// Experimental Document Picture-in-Picture API types
+declare global {
+  interface Window {
+    documentPictureInPicture: {
+      requestWindow(options?: { width?: number; height?: number }): Promise<Window>;
+      window: Window | null;
+      onenter: ((this: Window, ev: Event) => any) | null;
+    };
+  }
+}
