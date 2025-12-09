@@ -201,8 +201,8 @@ const App: React.FC = () => {
         totalTime += Date.now() - timer.lastStartTime;
       }
       
-      // Only save if it has some duration (e.g. > 5s)
-      if (totalTime > 5000) {
+      // Only save if it has some duration (e.g. > 0ms, allow even instant completions)
+      if (totalTime > 0) {
         // Determine completion time based on creation time + duration
         // This preserves manually edited dates/times
         const completedAt = timer.createdAt + totalTime;

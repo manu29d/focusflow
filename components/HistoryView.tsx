@@ -56,7 +56,11 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, activeTimers, onUpda
       isActive: true as const
     }));
     
-    return [...historyWithElapsed, ...activeAsItems];
+    // Deduplicate: if an active timer ID is already in history, don't add it
+    const activeIds = new Set(activeAsItems.map(item => item.id));
+    const filteredHistory = historyWithElapsed.filter(item => !activeIds.has(item.id));
+    
+    return [...filteredHistory, ...activeAsItems];
   }, [history, activeTimers]);
 
   // Edit logic
