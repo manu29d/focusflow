@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { Timer, HistoryItem } from './types';
+import { Timer, HistoryItem, SyncData } from './types';
 import TimerInput from './components/TimerInput';
 import TimerCard from './components/TimerCard';
 import MiniTimer from './components/MiniTimer';
 import HistoryView from './components/HistoryView';
-import { LayoutGrid, CheckCircle2, BarChart2, Beaker, ChevronLeft, ChevronRight } from 'lucide-react';
+import SyncModal from './components/SyncModal';
+import { LayoutGrid, CheckCircle2, BarChart2, Beaker, ChevronLeft, ChevronRight, Share2, AlertCircle } from 'lucide-react';
 import { generateDemoData, generateDemoActiveTimers } from './utils/timeUtils';
 
 const App: React.FC = () => {
@@ -24,8 +25,12 @@ const App: React.FC = () => {
   });
 
   const [showHistory, setShowHistory] = useState(false);
+  const [showSync, setShowSync] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [demoData, setDemoData] = useState<HistoryItem[]>([]);
+
+  // Import Status
+  const [importStatus, setImportStatus] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
 
   // PiP State
   const [pipWindow, setPipWindow] = useState<Window | null>(null);
@@ -36,6 +41,39 @@ const App: React.FC = () => {
 
   // Determine which timers list to use
   const currentTimers = demoMode ? demoActiveTimers : timers;
+  const currentHistory = demoMode ? demoData : history;
+
+  // Handle URL Imports
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dataStr = params.get('data');
+    if (dataStr) {
+      try {
+        // Safe base64 decoding for UTF-8
+        const json = decodeURIComponent(escape(window.atob(dataStr)));
+        const importedData: SyncData = JSON.parse(json);
+        
+        // Basic validation
+        if (Array.isArray(importedData.timers) && Array.isArray(importedData.history)) {
+           if (confirm(`Found import data from ${new Date(importedData.exportedAt).toLocaleDateString()}. \n\nThis will OVERWRITE your current local data. Continue?`)) {
+              setTimers(importedData.timers);
+              setHistory(importedData.history);
+              setDemoMode(false); // Ensure we switch to real data
+              setImportStatus({ msg: 'Data imported successfully!', type: 'success' });
+           }
+        } else {
+           setImportStatus({ msg: 'Invalid data format.', type: 'error' });
+        }
+      } catch (e) {
+        console.error("Import failed", e);
+        setImportStatus({ msg: 'Failed to import data. Link may be corrupted.', type: 'error' });
+      }
+      
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => setImportStatus(null), 5000);
+    }
+  }, []);
 
   // Save to localStorage whenever REAL timers change
   useEffect(() => {
@@ -350,14 +388,32 @@ const App: React.FC = () => {
             <p className="text-slate-400 text-sm ml-1">Master your time, one task at a time.</p>
           </div>
 
-          <button
-            onClick={() => setShowHistory(true)}
-            className="group flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all text-slate-300 hover:text-white"
-          >
-            <BarChart2 size={20} className="text-indigo-400 group-hover:text-indigo-300" />
-            <span className="font-medium">History</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowSync(true)}
+              className="group flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all text-slate-300 hover:text-white"
+              title="Sync Data"
+            >
+              <Share2 size={20} className="text-indigo-400 group-hover:text-indigo-300" />
+            </button>
+            <button
+              onClick={() => setShowHistory(true)}
+              className="group flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all text-slate-300 hover:text-white"
+            >
+              <BarChart2 size={20} className="text-indigo-400 group-hover:text-indigo-300" />
+              <span className="font-medium hidden sm:inline">History</span>
+            </button>
+          </div>
         </header>
+
+        {importStatus && (
+           <div className={`p-4 rounded-xl border flex items-center gap-3 animate-fade-in ${
+             importStatus.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-red-500/10 border-red-500/50 text-red-400'
+           }`}>
+              <AlertCircle size={20} />
+              <span className="text-sm font-medium">{importStatus.msg}</span>
+           </div>
+        )}
 
         {/* Dashboard Input */}
         <section>
@@ -451,6 +507,18 @@ const App: React.FC = () => {
           history={demoMode ? demoData : history} 
           onUpdate={updateHistoryItem}
           onClose={() => setShowHistory(false)} 
+        />
+      )}
+
+      {/* Sync Modal */}
+      {showSync && (
+        <SyncModal 
+           data={{
+             timers: currentTimers,
+             history: currentHistory,
+             exportedAt: Date.now()
+           }}
+           onClose={() => setShowSync(false)}
         />
       )}
 

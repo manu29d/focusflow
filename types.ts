@@ -1,4 +1,5 @@
 
+
 export interface Timer {
   id: string;
   title: string;
@@ -14,6 +15,12 @@ export interface HistoryItem {
   title: string;
   completedAt: number;
   durationMs: number;
+}
+
+export interface SyncData {
+  timers: Timer[];
+  history: HistoryItem[];
+  exportedAt: number;
 }
 
 export type TimerAction = 
