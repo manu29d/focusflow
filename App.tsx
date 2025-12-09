@@ -503,7 +503,8 @@ const App: React.FC = () => {
       {/* History View Modal */}
       {showHistory && (
         <HistoryView 
-          history={demoMode ? demoData : history} 
+          history={demoMode ? demoData : history}
+          activeTimers={currentTimers}
           onUpdate={updateHistoryItem}
           onClose={() => setShowHistory(false)} 
         />

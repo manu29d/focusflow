@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
-import { X, TrendingUp, Calendar, Clock, ChevronLeft, BarChart3, Edit2, Save } from 'lucide-react';
-import { HistoryItem } from '../types';
+import { X, TrendingUp, Calendar, Clock, ChevronLeft, BarChart3, Edit2, Save, Zap } from 'lucide-react';
+import { HistoryItem, Timer } from '../types';
+import { getElapsed } from '../utils/timeUtils';
 import { 
   formatDurationShort, 
   getDayName, 
@@ -19,6 +20,7 @@ import {
 
 interface HistoryViewProps {
   history: HistoryItem[];
+  activeTimers: Timer[];
   onUpdate: (id: string, updates: Partial<HistoryItem>) => void;
   onClose: () => void;
 }
@@ -27,7 +29,7 @@ interface HistoryViewProps {
 type ViewMode = 'preset' | 'drilldown';
 type DrillLevel = 'year' | 'month' | 'week';
 
-const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ history, activeTimers, onUpdate, onClose }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('preset');
   const [presetDays, setPresetDays] = useState<number>(7);
   
@@ -38,6 +40,24 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
   const [isDrilledFromPreset, setIsDrilledFromPreset] = useState(false);
 
   const [selectedTimestamp, setSelectedTimestamp] = useState<number | null>(null);
+
+  // Convert active timers to pseudo-history items for display
+  const combinedItems = useMemo(() => {
+    const historyWithElapsed = history.map(item => ({
+      ...item,
+      isActive: false as const
+    }));
+    
+    const activeAsItems = activeTimers.map(timer => ({
+      id: timer.id,
+      title: timer.title,
+      completedAt: timer.createdAt,
+      durationMs: getElapsed(timer),
+      isActive: true as const
+    }));
+    
+    return [...historyWithElapsed, ...activeAsItems];
+  }, [history, activeTimers]);
 
   // Edit logic
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -73,6 +93,9 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
   const chartData = useMemo(() => {
     const dataPoints = [];
     
+    // Combine history with active timers for chart
+    const allItems = combinedItems;
+    
     // VIEW 1: PRESET (Last 7, 14 days) - Daily Bars
     // VIEW 1b: PRESET (Last 30 days) - Weekly Bars
     if (viewMode === 'preset') {
@@ -86,7 +109,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
             d.setDate(d.getDate() - (i * 7));
             const weekStartTs = d.getTime();
             
-            const totalMs = history
+            const totalMs = allItems
                .filter(item => isSameWeek(item.completedAt, weekStartTs))
                .reduce((acc, item) => acc + item.durationMs, 0);
 
@@ -106,7 +129,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
             d.setDate(d.getDate() - i);
             const timestamp = d.getTime();
             
-            const totalMs = history
+            const totalMs = allItems
               .filter(item => isSameDay(item.completedAt, timestamp))
               .reduce((acc, item) => acc + item.durationMs, 0);
 
@@ -130,7 +153,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const timestamp = d.getTime();
             
-            const totalMs = history
+            const totalMs = allItems
               .filter(item => isSameMonth(item.completedAt, timestamp))
               .reduce((acc, item) => acc + item.durationMs, 0);
               
@@ -148,7 +171,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
           const weeks = getWeeksInMonth(focusDate);
           
           weeks.forEach((weekStart) => {
-             const totalMs = history
+             const totalMs = allItems
               .filter(item => isSameWeek(item.completedAt, weekStart))
               .reduce((acc, item) => acc + item.durationMs, 0);
 
@@ -169,7 +192,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
             d.setDate(d.getDate() + i);
             const timestamp = d.getTime();
             
-            const totalMs = history
+            const totalMs = allItems
               .filter(item => isSameDay(item.completedAt, timestamp))
               .reduce((acc, item) => acc + item.durationMs, 0);
 
@@ -186,11 +209,11 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
 
     const maxMs = Math.max(...dataPoints.map(s => s.totalMs), 1);
     return { dataPoints, maxMs };
-  }, [history, viewMode, presetDays, drillLevel, focusDate]);
+  }, [combinedItems, viewMode, presetDays, drillLevel, focusDate]);
 
   // Filter list items based on view settings
   const filteredItems = useMemo(() => {
-    let items = [...history];
+    let items = [...combinedItems];
 
     if (viewMode === 'preset') {
         const today = new Date();
@@ -229,7 +252,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
     }
 
     return items.sort((a, b) => b.completedAt - a.completedAt);
-  }, [history, viewMode, presetDays, drillLevel, focusDate, selectedTimestamp, chartData.dataPoints]);
+  }, [combinedItems, viewMode, presetDays, drillLevel, focusDate, selectedTimestamp, chartData.dataPoints]);
 
   const handleBarClick = (point: any) => {
     if (viewMode === 'preset') {
@@ -434,12 +457,16 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
                     <p className="text-slate-500">No sessions recorded for this period.</p>
                   </div>
                 ) : (
-                  filteredItems.map((item, idx) => (
+                  filteredItems.map((item: any, idx) => (
                     <div 
                       key={`${item.id}-${idx}`} 
-                      className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 transition-all group"
+                      className={`border border-slate-700/50 rounded-xl p-4 transition-all group ${
+                        item.isActive 
+                          ? 'bg-amber-900/20 border-amber-700/50' 
+                          : 'bg-slate-800/40'
+                      }`}
                     >
-                      {editingId === item.id ? (
+                      {!item.isActive && editingId === item.id ? (
                         <div className="space-y-3">
                           <input 
                             type="text" 
@@ -493,9 +520,16 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
                       ) : (
                         <div className="flex items-center justify-between">
                           <div className="min-w-0 flex-1 pr-4">
-                            <h4 className="text-slate-200 font-medium truncate group-hover:text-indigo-200 transition-colors">
-                              {item.title}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-slate-200 font-medium truncate group-hover:text-indigo-200 transition-colors">
+                                {item.title}
+                              </h4>
+                              {item.isActive && (
+                                <span className="flex items-center gap-1 text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <Zap size={10} /> Active
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                               <Calendar size={12} />
                               <span>{formatDateFull(item.completedAt)}</span>
@@ -504,16 +538,22 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, onUpdate, onClose })
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <div className="text-indigo-400 font-mono font-medium whitespace-nowrap bg-indigo-500/10 px-3 py-1 rounded-lg">
+                            <div className={`font-mono font-medium whitespace-nowrap px-3 py-1 rounded-lg ${
+                              item.isActive 
+                                ? 'text-amber-400 bg-amber-500/10' 
+                                : 'text-indigo-400 bg-indigo-500/10'
+                            }`}>
                               {formatDurationShort(item.durationMs)}
                             </div>
-                            <button 
-                              onClick={() => startEdit(item)}
-                              className="p-2 text-slate-600 hover:text-slate-300 hover:bg-slate-700/50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                              title="Edit Session"
-                            >
-                              <Edit2 size={16} />
-                            </button>
+                            {!item.isActive && (
+                              <button 
+                                onClick={() => startEdit(item)}
+                                className="p-2 text-slate-600 hover:text-slate-300 hover:bg-slate-700/50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                title="Edit Session"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
