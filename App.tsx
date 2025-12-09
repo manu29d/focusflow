@@ -41,7 +41,6 @@ const App: React.FC = () => {
 
   // Determine which timers list to use
   const currentTimers = demoMode ? demoActiveTimers : timers;
-  const currentHistory = demoMode ? demoData : history;
 
   // Handle URL Imports
   useEffect(() => {
@@ -514,8 +513,8 @@ const App: React.FC = () => {
       {showSync && (
         <SyncModal 
            data={{
-             timers: currentTimers,
-             history: currentHistory,
+             timers: timers,
+             history: history,
              exportedAt: Date.now()
            }}
            onClose={() => setShowSync(false)}

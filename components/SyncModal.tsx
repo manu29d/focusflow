@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import QRCode from 'qrcode';
+import QRCode from 'react-qr-code';
 import { X, Copy, Check, Smartphone, AlertTriangle } from 'lucide-react';
 import { SyncData } from '../types';
 
@@ -10,7 +10,6 @@ interface SyncModalProps {
 }
 
 const SyncModal: React.FC<SyncModalProps> = ({ data, onClose }) => {
-  const [qrSrc, setQrSrc] = useState<string>('');
   const [url, setUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,30 +17,25 @@ const SyncModal: React.FC<SyncModalProps> = ({ data, onClose }) => {
   useEffect(() => {
     try {
       const json = JSON.stringify(data);
+      
       // Safe base64 encoding for UTF-8
       const base64 = window.btoa(unescape(encodeURIComponent(json)));
       
-      const fullUrl = `${window.location.origin}${window.location.pathname}?data=${base64}`;
-      setUrl(fullUrl);
+      // Build the complete share URL
+      const shareUrl = `${window.location.origin}${window.location.pathname}?data=${base64}`;
+      
+      console.log('Share URL to encode:', shareUrl);
+      console.log('Share URL length:', shareUrl.length);
+      
+      // Set the URL for the input field
+      setUrl(shareUrl);
 
-      if (fullUrl.length > 8000) {
+      if (shareUrl.length > 8000) {
         setError("Data is too large to sync via QR Code. Try clearing some history.");
         return;
       }
-
-      QRCode.toDataURL(fullUrl, { 
-        width: 300, 
-        margin: 2, 
-        color: { dark: '#000000', light: '#ffffff' },
-        errorCorrectionLevel: 'L'
-      })
-      .then(setQrSrc)
-      .catch((err) => {
-        console.error(err);
-        setError("Failed to generate QR Code.");
-      });
     } catch (e) {
-      console.error(e);
+      console.error('URL encoding error:', e);
       setError("Failed to encode data.");
     }
   }, [data]);
@@ -83,12 +77,18 @@ const SyncModal: React.FC<SyncModalProps> = ({ data, onClose }) => {
 
           <div className="bg-white p-4 rounded-xl shadow-lg">
             {error ? (
-               <div className="w-[200px] h-[200px] flex flex-col items-center justify-center text-red-500 gap-2">
+               <div className="w-[250px] h-[250px] flex flex-col items-center justify-center text-red-500 gap-2">
                  <AlertTriangle size={32} />
                  <span className="text-center text-xs text-slate-900 font-medium">{error}</span>
                </div>
-            ) : qrSrc ? (
-              <img src={qrSrc} alt="Sync QR Code" className="w-[250px] h-[250px]" />
+            ) : url ? (
+              <QRCode
+                value={url}
+                size={250}
+                level="L"
+                bgColor="#ffffff"
+                fgColor="#000000"
+              />
             ) : (
               <div className="w-[250px] h-[250px] flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
