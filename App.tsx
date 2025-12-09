@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Timer, HistoryItem, SyncData } from './types';
 import TimerInput from './components/TimerInput';
