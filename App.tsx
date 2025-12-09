@@ -208,15 +208,16 @@ const App: React.FC = () => {
         const completedAt = timer.createdAt + totalTime;
 
         const historyItem: HistoryItem = {
-          id: timer.id,
+          id: timer.id, // Use the same ID to allow deduplication in HistoryView
           title: timer.title,
           completedAt: completedAt,
           durationMs: totalTime
         };
         if (demoMode) {
-             setDemoData(h => [historyItem, ...h]);
+             // Remove any existing item with same ID before adding new one (update scenario)
+             setDemoData(h => [historyItem, ...h.filter(i => i.id !== timer.id)]);
         } else {
-             setHistory(h => [historyItem, ...h]);
+             setHistory(h => [historyItem, ...h.filter(i => i.id !== timer.id)]);
         }
       }
   };
