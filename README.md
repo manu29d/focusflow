@@ -2,6 +2,9 @@
 
 A sleek, multi-tasking timer application built with React, TypeScript, and Tailwind CSS. Features a Picture-in-Picture mode for focused productivity and detailed history tracking.
 
+<img width="768" height="898" alt="image" src="https://github.com/user-attachments/assets/df71c349-84d7-4009-a3f0-81bd464c1888" />
+
+
 ## Features
 
 - **Multi-Timer Management**: Create, pause, and resume multiple named timers.
